@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parte Diario - Jefatura de Obra ISL</title>
+<style>
+  :root { --azul:#1F4E78; --azul-claro:#eaf1f7; --amarillo:#FFF2CC; --gris:#f4f4f4; --borde:#ccc; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; background: var(--gris); margin:0; padding:0 0 60px; color:#222; }
+  header { background: var(--azul); color:#fff; padding:16px 20px; }
+  header h1 { margin:0; font-size:18px; }
+  .contenedor { max-width: 900px; margin: 0 auto; padding: 16px; }
+  section { background:#fff; border:1px solid var(--borde); border-radius:8px; padding:14px 16px; margin-bottom:16px; }
+  section h2 { font-size:15px; color: var(--azul); margin:0 0 10px; border-bottom:1px solid #eee; padding-bottom:6px; }
+  label { font-size:13px; font-weight:bold; display:block; margin-bottom:4px; }
+  select, input[type=text], input[type=number], input[type=date], input[type=time], textarea {
+    width:100%; padding:7px; border:1px solid var(--borde); border-radius:5px; font-size:14px; margin-bottom:10px;
+  }
+  .fila-top { display:flex; gap:12px; flex-wrap:wrap; }
+  .fila-top > div { flex:1; min-width:150px; }
+  table { width:100%; border-collapse: collapse; margin-bottom:8px; font-size:13px; }
+  th, td { border:1px solid #ddd; padding:6px; text-align:left; vertical-align:top; }
+  th { background: var(--azul-claro); font-size:12px; }
+  .btn { background: var(--azul); color:#fff; border:none; padding:9px 14px; border-radius:5px; cursor:pointer; font-size:13px; }
+  .btn.secundario { background:#6c8faa; }
+  .btn.chico { padding:4px 8px; font-size:12px; }
+  .btn.eliminar { background:#c0392b; }
+  .btn:disabled { background:#aaa; cursor:not-allowed; }
+  .fila-dinamica td { min-width:110px; }
+  .asistencia-fila { display:grid; grid-template-columns: 1.4fr 0.6fr 1fr 1fr; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid #eee; }
+  .asistencia-fila.ausente { grid-template-columns: 1.4fr 0.6fr 2fr; }
+  .asistencia-fila label.chk { display:flex; align-items:center; gap:6px; font-weight:normal; margin:0; }
+  #barra-envio { position: fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--borde); padding:12px 16px; text-align:right; }
+  #mensaje { font-size:13px; margin-right:12px; }
+  .ok { color: #1a7a3d; }
+  .error { color: #c0392b; }
+  small.ayuda { color:#777; display:block; margin-top:-6px; margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<header><h1>Parte Diario &mdash; Jefatura de Obra (ISL)</h1></header>
+
+<div class="contenedor">
+
+  <section>
+    <h2>Datos generales</h2>
+    <div class="fila-top">
+      <div>
+        <label>Fecha</label>
+        <input type="date" id="fecha">
+      </div>
+      <div>
+        <label>Obra</label>
+        <select id="obra"><option value="">Cargando...</option></select>
+      </div>
+    </div>
+  </section>
+
+  <section id="seccion-asistencia" style="display:none">
+    <h2>Asistencia</h2>
+    <small class="ayuda">Marcá quién estuvo presente y su horario. Si no vino, indicá el motivo.</small>
+    <div id="lista-asistencia"></div>
+  </section>
+
+  <section id="seccion-tareas" style="display:none">
+    <h2>Tareas realizadas</h2>
+    <small class="ayuda">HH reloj imputadas por persona a cada ítem de certificación.</small>
+    <table id="tabla-tareas">
+      <thead><tr><th>Persona</th><th>Ítem</th><th>HH</th><th>Descripción</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn secundario chico" onclick="agregarFilaTarea()">+ Agregar tarea</button>
+  </section>
+
+  <section id="seccion-equipos" style="display:none">
+    <h2>Equipos</h2>
+    <table id="tabla-equipos">
+      <thead><tr><th>Equipo</th><th>Hs de uso</th><th>Ítem (opcional)</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn secundario chico" onclick="agregarFilaEquipo()">+ Agregar equipo</button>
+  </section>
+
+  <section id="seccion-noejecutadas" style="display:none">
+    <h2>Tareas no ejecutadas</h2>
+    <small class="ayuda">Tareas previstas que no se pudieron hacer. "Causa ISL = No" es lo que sirve para reclamo.</small>
+    <table id="tabla-noejecutadas">
+      <thead><tr><th>Ítem</th><th>Causa ISL</th><th>Motivo</th><th>Descripción</th><th>Personal afectado</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn secundario chico" onclick="agregarFilaNoEjecutada()">+ Agregar</button>
+  </section>
+
+  <section id="seccion-tiemposmuertos" style="display:none">
+    <h2>Tiempos muertos</h2>
+    <small class="ayuda">Demoras dentro del día (permisos de trabajo, charlas de seguridad, etc.) con ventana horaria.</small>
+    <table id="tabla-tiemposmuertos">
+      <thead><tr><th>Inicio</th><th>Fin</th><th>Motivo</th><th>Personal afectado</th><th>Equipos afectados</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn secundario chico" onclick="agregarFilaTiempoMuerto()">+ Agregar</button>
+  </section>
+
+</div>
+
+<div id="barra-envio">
+  <span id="mensaje"></span>
+  <button class="btn" id="btn-enviar" onclick="enviarParte()" disabled>Guardar parte diario</button>
+</div>
+
+<script>
+// ======= CONFIGURAR ANTES DE PUBLICAR =======
+const SCRIPT_URL = 'PEGAR_AQUI_LA_URL_DEL_WEB_APP_DE_APPS_SCRIPT';
+// =============================================
+
+let maestros = { obras: [], personal: [], items: [], motivos: [] };
+
+document.getElementById('fecha').valueAsDate = new Date();
+
+function cargarObras() {
+  fetch(SCRIPT_URL + '?action=maestros')
+    .then(r => r.json())
+    .then(data => {
+      maestros.obras = data.obras || [];
+      const sel = document.getElementById('obra');
+      sel.innerHTML = '<option value="">Seleccionar obra...</option>' +
+        maestros.obras.map(o => `<option value="${o.ID_Obra}">${o.Nombre}</option>`).join('');
+    })
+    .catch(err => mostrarMensaje('Error cargando obras: ' + err, true));
+}
+
+document.getElementById('obra').addEventListener('change', function () {
+  const obra = this.value;
+  if (!obra) { ocultarSecciones(); return; }
+  fetch(SCRIPT_URL + '?action=maestros&obra=' + encodeURIComponent(obra))
+    .then(r => r.json())
+    .then(data => {
+      maestros.personal = data.personal || [];
+      maestros.items = data.items || [];
+      maestros.motivos = data.motivos || [];
+      mostrarSecciones();
+      renderAsistencia();
+      document.getElementById('btn-enviar').disabled = false;
+    })
+    .catch(err => mostrarMensaje('Error cargando datos de la obra: ' + err, true));
+});
+
+function ocultarSecciones() {
+  ['asistencia','tareas','equipos','noejecutadas','tiemposmuertos'].forEach(id => {
+    document.getElementById('seccion-' + id).style.display = 'none';
+  });
+  document.getElementById('btn-enviar').disabled = true;
+}
+function mostrarSecciones() {
+  ['asistencia','tareas','equipos','noejecutadas','tiemposmuertos'].forEach(id => {
+    document.getElementById('seccion-' + id).style.display = 'block';
+  });
+}
+
+// ---------- ASISTENCIA ----------
+function renderAsistencia() {
+  const cont = document.getElementById('lista-asistencia');
+  cont.innerHTML = maestros.personal.map(p => `
+    <div class="asistencia-fila" data-persona="${p.ID_Persona}">
+      <label class="chk"><input type="checkbox" class="chk-presente" checked onchange="toggleAsistencia(this)"> ${p.Nombre}</label>
+      <span style="font-size:12px;color:#777">${p.Categoria || ''}</span>
+      <input type="time" class="in-ingreso" value="08:00">
+      <input type="time" class="in-salida" value="17:00">
+      <input type="text" class="in-motivo" placeholder="Motivo de ausencia" style="display:none">
+    </div>
+  `).join('');
+}
+function toggleAsistencia(chk) {
+  const fila = chk.closest('.asistencia-fila');
+  const presente = chk.checked;
+  fila.querySelector('.in-ingreso').style.display = presente ? '' : 'none';
+  fila.querySelector('.in-salida').style.display = presente ? '' : 'none';
+  fila.querySelector('.in-motivo').style.display = presente ? 'none' : '';
+  fila.classList.toggle('ausente', !presente);
+}
+
+function opcionesPersonasPresentes() {
+  const presentes = [...document.querySelectorAll('.asistencia-fila')]
+    .filter(f => f.querySelector('.chk-presente').checked)
+    .map(f => f.dataset.persona);
+  return maestros.personal.filter(p => presentes.includes(p.ID_Persona));
+}
+function opcionesItems() {
+  return maestros.items;
+}
+function opcionesMotivos() {
+  return maestros.motivos;
+}
+
+// ---------- TAREAS ----------
+function agregarFilaTarea() {
+  const tbody = document.querySelector('#tabla-tareas tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'fila-dinamica';
+  tr.innerHTML = `
+    <td><select class="t-persona">${opcionesPersonasPresentes().map(p => `<option value="${p.ID_Persona}">${p.Nombre}</option>`).join('')}</select></td>
+    <td><select class="t-item">${opcionesItems().map(i => `<option value="${i.Codigo_Item}">${i.Codigo_Item} - ${i.Descripcion}</option>`).join('')}</select></td>
+    <td><input type="number" step="0.5" class="t-horas" value="1"></td>
+    <td><input type="text" class="t-desc" placeholder="Descripción breve"></td>
+    <td><button class="btn eliminar chico" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// ---------- EQUIPOS ----------
+function agregarFilaEquipo() {
+  const tbody = document.querySelector('#tabla-equipos tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'fila-dinamica';
+  tr.innerHTML = `
+    <td><select class="e-equipo"><option>Grua</option><option>Retroexcavadora</option><option>Camion Hidrogrua</option></select></td>
+    <td><input type="number" step="0.5" class="e-horas" value="1"></td>
+    <td><select class="e-item"><option value="">-</option>${opcionesItems().map(i => `<option value="${i.Codigo_Item}">${i.Codigo_Item}</option>`).join('')}</select></td>
+    <td><button class="btn eliminar chico" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// ---------- TAREAS NO EJECUTADAS ----------
+function agregarFilaNoEjecutada() {
+  const tbody = document.querySelector('#tabla-noejecutadas tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'fila-dinamica';
+  tr.innerHTML = `
+    <td><select class="n-item">${opcionesItems().map(i => `<option value="${i.Codigo_Item}">${i.Codigo_Item}</option>`).join('')}</select></td>
+    <td><select class="n-causa"><option value="No">No (ajena a ISL)</option><option value="Si">Si (atribuible a ISL)</option></select></td>
+    <td><select class="n-motivo">${opcionesMotivos().map(m => `<option value="${m.ID_Motivo}">${m.Descripcion}</option>`).join('')}</select></td>
+    <td><input type="text" class="n-desc" placeholder="Detalle"></td>
+    <td><input type="text" class="n-personal" placeholder="IDs separados por ;"></td>
+    <td><button class="btn eliminar chico" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// ---------- TIEMPOS MUERTOS ----------
+function agregarFilaTiempoMuerto() {
+  const tbody = document.querySelector('#tabla-tiemposmuertos tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'fila-dinamica';
+  tr.innerHTML = `
+    <td><input type="time" class="tm-inicio" value="08:00"></td>
+    <td><input type="time" class="tm-fin" value="09:00"></td>
+    <td><select class="tm-motivo">${opcionesMotivos().map(m => `<option value="${m.ID_Motivo}">${m.Descripcion}</option>`).join('')}</select></td>
+    <td><input type="text" class="tm-personal" placeholder="IDs separados por ;"></td>
+    <td><input type="text" class="tm-equipos" placeholder="Ej: Grua"></td>
+    <td><button class="btn eliminar chico" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// ---------- ENVIO ----------
+function enviarParte() {
+  const fecha = document.getElementById('fecha').value;
+  const obra = document.getElementById('obra').value;
+  if (!fecha || !obra) { mostrarMensaje('Falta fecha u obra.', true); return; }
+
+  const asistencia = [...document.querySelectorAll('.asistencia-fila')].map(f => ({
+    persona: f.dataset.persona,
+    presente: f.querySelector('.chk-presente').checked,
+    motivoAusencia: f.querySelector('.in-motivo').value,
+    ingreso: f.querySelector('.in-ingreso').value,
+    salida: f.querySelector('.in-salida').value
+  }));
+
+  const tareas = [...document.querySelectorAll('#tabla-tareas tbody tr')].map(f => ({
+    persona: f.querySelector('.t-persona').value,
+    item: f.querySelector('.t-item').value,
+    horas: parseFloat(f.querySelector('.t-horas').value) || 0,
+    descripcion: f.querySelector('.t-desc').value
+  }));
+
+  const equipos = [...document.querySelectorAll('#tabla-equipos tbody tr')].map(f => ({
+    equipo: f.querySelector('.e-equipo').value,
+    horas: parseFloat(f.querySelector('.e-horas').value) || 0,
+    item: f.querySelector('.e-item').value
+  }));
+
+  const noEjecutadas = [...document.querySelectorAll('#tabla-noejecutadas tbody tr')].map(f => ({
+    item: f.querySelector('.n-item').value,
+    causaISL: f.querySelector('.n-causa').value,
+    motivo: f.querySelector('.n-motivo').value,
+    descripcion: f.querySelector('.n-desc').value,
+    personalAfectado: f.querySelector('.n-personal').value
+  }));
+
+  const tiemposMuertos = [...document.querySelectorAll('#tabla-tiemposmuertos tbody tr')].map(f => ({
+    horaInicio: f.querySelector('.tm-inicio').value,
+    horaFin: f.querySelector('.tm-fin').value,
+    motivo: f.querySelector('.tm-motivo').value,
+    personalAfectado: f.querySelector('.tm-personal').value,
+    equiposAfectados: f.querySelector('.tm-equipos').value
+  }));
+
+  const payload = { fecha, obra, asistencia, tareas, equipos, noEjecutadas, tiemposMuertos };
+
+  document.getElementById('btn-enviar').disabled = true;
+  mostrarMensaje('Guardando...', false);
+
+  fetch(SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(payload)))
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        mostrarMensaje('Parte guardado correctamente.', false, true);
+      } else {
+        mostrarMensaje('Error: ' + (data.error || 'desconocido'), true);
+      }
+      document.getElementById('btn-enviar').disabled = false;
+    })
+    .catch(err => {
+      mostrarMensaje('Error de conexión: ' + err, true);
+      document.getElementById('btn-enviar').disabled = false;
+    });
+}
+
+function mostrarMensaje(txt, esError, ok) {
+  const el = document.getElementById('mensaje');
+  el.textContent = txt;
+  el.className = esError ? 'error' : (ok ? 'ok' : '');
+}
+
+cargarObras();
+</script>
+</body>
+</html>
